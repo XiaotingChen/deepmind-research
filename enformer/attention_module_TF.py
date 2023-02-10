@@ -78,6 +78,7 @@ class TransformerBlock(
   @classmethod
   def from_config(cls, config):
     return cls(**config)
+
 @tf.keras.utils.register_keras_serializable()
 class MultiheadAttention(
     tf.keras.layers.Layer
@@ -226,7 +227,7 @@ class MultiheadAttention(
     """Applies a standard linear to inputs and returns multihead output."""
 
     #output = snt.BatchApply(linear)(inputs)  # [B, T, H * KV]
-    output = _layer(inputs)  # todo: need check
+    output = _layer(inputs)
 
     num_kv_channels = tf.shape(output)[-1] // self._num_heads
     # Split H * Channels into separate axes.
@@ -235,7 +236,6 @@ class MultiheadAttention(
         output,
         (batch_size, -1, self._num_heads, num_kv_channels)
     )
-    # todo: need check
 
     # [B, T, H, KV] -> [B, H, T, KV]
     return tf.transpose(output, [0, 2, 1, 3])
@@ -298,7 +298,7 @@ class MultiheadAttention(
     if training:
       weights = tf.nn.dropout(att_weights, rate=self._attention_dropout_rate)
     else:
-      weights=att_weights
+      weights = att_weights
     # Transpose and reshape the output.
     output = tf.matmul(weights, v)  # [B, H, T', V]
     output_transpose = tf.transpose(output, [0, 2, 1, 3])  # [B, T', H, V]
@@ -312,7 +312,7 @@ class MultiheadAttention(
 
     output = self._embedding_layer(attended_inputs)
 
-    return output,att_weights
+    return output, att_weights
 
   def get_config(self):
     config = super().get_config()
