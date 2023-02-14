@@ -214,14 +214,31 @@ class MultiheadAttention(
           use_bias=False,
           kernel_initializer=self._initializer
       )
-      self._r_w_bias = tf.Variable(
-          self._initializer([1, self._num_heads, 1, self._key_size],
-                            dtype=tf.float32),
-          name='r_w_bias')
-      self._r_r_bias = tf.Variable(
-          self._initializer([1, self._num_heads, 1, self._key_size],
-                            dtype=tf.float32),
-          name='r_r_bias')
+      try:
+        self._r_w_bias = tf.Variable(
+            self._initializer([1, self._num_heads, 1, self._key_size],
+                              dtype=tf.float32),
+            name='r_w_bias')
+      except:
+        temp = self._initializer([self._num_heads, self._key_size],
+                              dtype=tf.float32)
+        temp = tf.reshape(temp, (1, self._num_heads, 1, self._key_size))
+        self._r_w_bias = tf.Variable(
+            temp,
+            name='r_w_bias')
+
+      try:      
+        self._r_r_bias = tf.Variable(
+            self._initializer([1, self._num_heads, 1, self._key_size],
+                              dtype=tf.float32),
+            name='r_r_bias')
+      except:
+        temp = self._initializer([self._num_heads, self._key_size],
+                              dtype=tf.float32)
+        temp = tf.reshape(temp, (1, self._num_heads, 1, self._key_size))
+        self._r_r_bias = tf.Variable(
+            temp,
+            name='r_r_bias')
 
   def _multihead_output(self, _layer, inputs, batch_size):
     """Applies a standard linear to inputs and returns multihead output."""
