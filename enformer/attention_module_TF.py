@@ -251,7 +251,7 @@ class MultiheadAttention(
     #output = snt.reshape(output, output_shape=[-1, self._num_heads, num_kv_channels])
     output = tf.reshape(
         output,
-        (batch_size, -1, self._num_heads, num_kv_channels)
+        (-1, tf.shape(output)[1], self._num_heads, num_kv_channels)
     )
 
     # [B, T, H, KV] -> [B, H, T, KV]
