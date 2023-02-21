@@ -3,11 +3,8 @@ Re-implement attention_module.py without sonnet library from
 https://github.com/deepmind/deepmind-research/blob/master/enformer/attention_module.py
 '''
 
-
 from typing import Any, Dict, List, Optional
-
 import numpy as np
-# import sonnet as snt
 import tensorflow as tf
 
 @tf.keras.utils.register_keras_serializable()
@@ -31,21 +28,14 @@ class TransformerBlock(
     self.attention_kwargs=attention_kwargs
 
   def build(self, input_shape):
-    # self.mha_ln = snt.LayerNorm(axis=-1, create_scale=True, create_offset=True)
     self.mha_ln = tf.keras.layers.LayerNormalization(axis=-1, scale=True, center=True)
     self.mha = MultiheadAttention(**self.attention_kwargs)
-    #self.mha_dropout = snt.Dropout(dropout_rate)
     self.mha_dropout = tf.keras.layers.Dropout(self.dropout_rate)
 
-    #self.mlp_ln = snt.LayerNorm(axis=-1, create_scale=True, create_offset=True)
     self.mlp_ln = tf.keras.layers.LayerNormalization(axis=-1, scale=True, center=True)
-    #self.mlp_linear1 = snt.Linear(channels * 2)
     self.mlp_linear1 = tf.keras.layers.Dense(self.channels * 2)
-    #self.mlp_dropout1 = snt.Dropout(dropout_rate)
     self.mlp_dropout1 = tf.keras.layers.Dropout(self.dropout_rate)
-    #self.mlp_linear2 = snt.Linear(channels)
     self.mlp_linear2 = tf.keras.layers.Dense(self.channels)
-    #self.mlp_dropout2 = snt.Dropout(dropout_rate)
     self.mlp_dropout2 = tf.keras.layers.Dropout(self.dropout_rate)
 
   def call(self, inputs, training=False):
@@ -97,7 +87,6 @@ class MultiheadAttention(
                num_relative_position_features: Optional[int] = None,
                positional_dropout_rate: float = 0.1,
                zero_initialize: bool = True,
-               # initializer: Optional[snt.initializers.Initializer] = None,
                initializer: Optional[tf.keras.initializers.Initializer] = None,
                name: str = None,
                *args,
@@ -147,18 +136,12 @@ class MultiheadAttention(
     self.zero_initialize=zero_initialize
     self._initializer = initializer
     if self._initializer is None:
-      # self._initializer = snt.initializers.VarianceScaling(scale=2.0)
       self._initializer = tf.keras.initializers.VarianceScaling(scale=2)
 
   def build(self, input_shape):
     key_proj_size = self._key_size * self._num_heads
     embedding_size = self._value_size * self._num_heads
 
-    # self._q_layer = snt.Linear(
-    #     key_proj_size,
-    #     name='q_layer',
-    #     with_bias=False,
-    #     w_init=self._initializer)
     self._q_layer = tf.keras.layers.Dense(
         key_proj_size,
         name='q_layer',
@@ -166,22 +149,13 @@ class MultiheadAttention(
         kernel_initializer=self._initializer
     )
 
-    # self._k_layer = snt.Linear(
-    #     key_proj_size,
-    #     name='k_layer',
-    #     with_bias=False,
-    #     w_init=self._initializer)
     self._k_layer = tf.keras.layers.Dense(
         key_proj_size,
         name='k_layer',
         use_bias=False,
         kernel_initializer=self._initializer
     )
-    # self._v_layer = snt.Linear(
-    #     embedding_size,
-    #     name='v_layer',
-    #     with_bias=False,
-    #     w_init=self._initializer)
+
     self._v_layer = tf.keras.layers.Dense(
         embedding_size,
         name='v_layer',
@@ -189,25 +163,16 @@ class MultiheadAttention(
         kernel_initializer=self._initializer
     )
 
-    #w_init = snt.initializers.Zeros() if zero_initialize else self._initializer
     w_init = tf.keras.initializers.Zeros() if self.zero_initialize else self._initializer
 
-    # self._embedding_layer = snt.Linear(
-    #     embedding_size,
-    #     name='embedding_layer',
-    #     w_init=w_init)
     self._embedding_layer = tf.keras.layers.Dense(
         embedding_size,
         name='embedding_layer',
         kernel_initializer=w_init
     )
+
     # Create additional layers if using relative positions.
     if self._relative_positions:
-      # self._r_k_layer = snt.Linear(
-      #     key_proj_size,
-      #     name='r_k_layer',
-      #     with_bias=False,
-      #     w_init=self._initializer)
       self._r_k_layer = tf.keras.layers.Dense(
           key_proj_size,
           name='r_k_layer',
@@ -240,15 +205,13 @@ class MultiheadAttention(
             temp,
             name='r_r_bias')
 
-  def _multihead_output(self, _layer, inputs, batch_size):
+  def _multihead_output(self, _layer, inputs):
     """Applies a standard linear to inputs and returns multihead output."""
 
-    #output = snt.BatchApply(linear)(inputs)  # [B, T, H * KV]
-    output = _layer(inputs)
+    output = _layer(inputs) # [B, T, H * KV]
 
     num_kv_channels = tf.shape(output)[-1] // self._num_heads
     # Split H * Channels into separate axes.
-    #output = snt.reshape(output, output_shape=[-1, self._num_heads, num_kv_channels])
     output = tf.reshape(
         output,
         (-1, tf.shape(output)[1], self._num_heads, num_kv_channels)
@@ -267,9 +230,9 @@ class MultiheadAttention(
     batch_size = tf.shape(inputs)[0]
 
     # Compute q, k and v as multi-headed projections of the inputs.
-    q = self._multihead_output(self._q_layer, inputs, batch_size)  # [B, H, T, K]
-    k = self._multihead_output(self._k_layer, inputs, batch_size)  # [B, H, T, K]
-    v = self._multihead_output(self._v_layer, inputs, batch_size)  # [B, H, T, V]
+    q = self._multihead_output(self._q_layer, inputs)  # [B, H, T, K]
+    k = self._multihead_output(self._k_layer, inputs)  # [B, H, T, K]
+    v = self._multihead_output(self._v_layer, inputs)  # [B, H, T, V]
 
     # Scale the query by the square-root of key size.
     if self._scaling:
@@ -294,14 +257,15 @@ class MultiheadAttention(
         )
 
       # [1, H, 2T-1, K]
-      r_k = self._multihead_output(self._r_k_layer, positional_encodings, batch_size)
+      r_k = self._multihead_output(self._r_k_layer, positional_encodings)
 
       # Add shifted relative logits to content logits.
       # [B, H, T', T]
       content_logits = tf.matmul(q + self._r_w_bias, k, transpose_b=True)
+
       # [B, H, T', 2T-1]
-      relative_logits = tf.matmul(
-          q + self._r_r_bias, r_k, transpose_b=True)
+      relative_logits = tf.matmul(q + self._r_r_bias, r_k, transpose_b=True)
+
       #  [B, H, T', T]
       relative_logits = relative_shift(relative_logits)
       logits = content_logits + relative_logits
@@ -321,7 +285,6 @@ class MultiheadAttention(
     output_transpose = tf.transpose(output, [0, 2, 1, 3])  # [B, T', H, V]
 
     # Final linear layer.
-    #attended_inputs = snt.reshape(output_transpose, output_shape=[embedding_size], preserve_dims=2)
     attended_inputs = tf.reshape(
         output_transpose,
         (batch_size, -1, embedding_size)
@@ -360,7 +323,6 @@ def relative_shift(x):
   # We prepend zeros on the final timescale dimension.
   to_pad = tf.zeros_like(x[..., :1])
   x = tf.concat([to_pad, x], -1)
-  #_, num_heads, t1, t2 = x.shape
   num_heads=tf.shape(x)[1]
   t1=tf.shape(x)[2]
   t2=tf.shape(x)[3]
